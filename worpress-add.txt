@@ -1,3 +1,156 @@
+<!-- Bloque único para WordPress: pega en un bloque “HTML personalizado” -->
+<div id="ubicartemap">
+  <style>
+    /* Importa estilos de Leaflet dentro del bloque */
+    @import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+
+    /* Estilos scoped al contenedor para evitar conflictos con el tema */
+    #ubicartemap {
+      box-sizing: border-box;
+      color: #1b1b1b;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    #ubicartemap .map-wrapper {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 12px 16px;
+      box-sizing: border-box;
+    }
+
+    #ubicartemap #map {
+      width: 95vmin;
+      height: 70vmin;
+      margin: 0;
+    }
+
+    #ubicartemap .page-title {
+      margin: 0;
+      font-size: 60px;
+      font-weight: 800;
+      color: #272556;
+      text-align: center;
+    }
+
+    #ubicartemap .toolbar {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 16px;
+    }
+
+    #ubicartemap .toolbar input[type="search"] {
+      width: 100%;
+      max-width: 520px;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid #fbf2f2;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    #ubicartemap .toolbar input[type="search"]:focus {
+      border-color: #6bac2e;
+      box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.15);
+    }
+
+    #ubicartemap .info-bar {
+      width: 70vmin;
+      max-width: 100%;
+      box-sizing: border-box;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.85);
+      color: #272556;
+      text-align: center;
+      backdrop-filter: blur(2px);
+    }
+
+    /* Ajustes de control Leaflet para mejor visibilidad */
+    #ubicartemap .leaflet-control-attribution {
+      font-size: 12px;
+    }
+
+    /* Estilo del contenido del popup */
+    #ubicartemap .popup-content {
+      max-width: 320px;
+    }
+
+    #ubicartemap .popup-content h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      line-height: 1.3;
+      color: #272556;
+    }
+
+    #ubicartemap .popup-table {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 6px 12px;
+      align-items: start;
+      margin-bottom: 10px;
+    }
+
+    #ubicartemap .popup-table .label {
+      font-weight: 600;
+      color: #272556;
+    }
+
+    #ubicartemap .popup-table .value {
+      color: #272556;
+    }
+
+    #ubicartemap .route-btn {
+      display: inline-block;
+      padding: 8px 12px;
+      background: #6bac2e;
+      color: #fbf2f2 !important;
+      text-decoration: none !important;
+      border-radius: 6px;
+      font-weight: 600;
+      transition: background 0.2s ease;
+    }
+
+    #ubicartemap .route-btn:hover,
+    #ubicartemap .route-btn:focus {
+      background: #272556;
+      color: #fbf2f2 !important;
+    }
+
+    #ubicartemap .leaflet-popup-content .route-btn,
+    #ubicartemap .route-btn:link,
+    #ubicartemap .route-btn:visited,
+    #ubicartemap .route-btn:active {
+      color: #fbf2f2 !important;
+      text-decoration: none !important;
+    }
+
+    /* Responsividad: en móviles el popup usa una sola columna */
+    @media (max-width: 420px) {
+      #ubicartemap .popup-table {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+
+  <div class="map-wrapper">
+    <div class="toolbar">
+      <input id="searchInput" type="search" placeholder="Buscar por nombre o dirección" aria-label="Buscar lugar" />
+      <h1 class="page-title" aria-level="1" role="heading">UbicArte</h1>
+    </div>
+    <div id="map" role="region" aria-label="Mapa de ubicaciones"></div>
+    <div id="infoBar" class="info-bar" aria-live="polite">Selecciona un lugar para ver el nombre y descripción.</div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Lógica del mapa integrada -->
+  <script>
 'use strict';
 
 /*
@@ -17,11 +170,20 @@ const DATA_MODE = 'csv'; // 'wordpress' | 'opensheet' | 'csv'
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSmJpHUjla_aC3_3PUrju45_EGkVzpel7GPXQpRHlbnt_00ECp-tzlBWKHBZX9JRq72-d87pPdYHL1M/pub?output=csv';
 
 // Color del pin (SVG)
-const PIN_COLOR = '#e21054';
+const PIN_COLOR = '#272556';
 
 // Retardo (ms) entre geocodificaciones para respetar Nominatim
 const GEOCODE_DELAY_MS = 900;
 
+// Preferencia: si hay columna combinada "Coordenadas", usarla primero
+const PREFER_COORDINATE_FIELD = true;
+
+// Forzar orden de par combinado de coordenadas: 'auto' | 'latlng' | 'lnglat'
+const FORCE_COORDINATE_ORDER = 'auto';
+
+// Pista opcional de límites geográficos para resolver ambigüedad (ej. México)
+// Deja null si no quieres usarlo. Ejemplo MX: { minLat: 14, maxLat: 33, minLng: -118, maxLng: -86 }
+const BOUNDS_HINT = null;
 // Centro y zoom inicial (se ajusta luego a los marcadores)
 const INITIAL_VIEW = { center: [19.4326, -99.1332], zoom: 5 }; // CDMX aprox.
 
@@ -54,17 +216,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Contenedor de marcadores para calcular límites
   const markersGroup = L.featureGroup().addTo(map);
   const allMarkers = [];
+  const infoBar = document.getElementById('infoBar');
 
   // Fijar el icono por defecto para TODOS los marcadores
   L.Marker.prototype.options.icon = generatePinIcon(PIN_COLOR);
 
   try {
     const rows = await loadRows();
-    console.info(`[MAPA] Filas cargadas: ${rows.length}`);
+    console.info(\`[MAPA] Filas cargadas: \${rows.length}\`);
 
     // Normaliza y mapea columnas esperadas
     const places = mapRowsToSchema(rows);
-    console.info(`[MAPA] Registros normalizados: ${places.length}`);
+    console.info(\`[MAPA] Registros normalizados: \${places.length}\`);
 
     // Crea marcadores (geocodifica si hace falta)
     let created = 0, failed = 0, geocoded = 0, usedLatLng = 0, skipped = 0;
@@ -83,6 +246,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         marker.addTo(markersGroup);
         allMarkers.push({ marker, place });
+        // Actualiza barra inferior al hacer clic
+        marker.on('click', () => updateInfoBar(place));
         created++;
       } catch (e) {
         failed++;
@@ -90,12 +255,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
-    console.info(`[MAPA] Marcadores => creados: ${created}, geocodificados: ${geocoded}, con lat/lng: ${usedLatLng}, fallidos: ${failed}, sin coords: ${skipped}`);
+    console.info(\`[MAPA] Marcadores => creados: \${created}, geocodificados: \${geocoded}, con lat/lng: \${usedLatLng}, fallidos: \${failed}, sin coords: \${skipped}\`);
 
     // Ajusta el mapa a los marcadores
     const bounds = markersGroup.getBounds();
     if (bounds.isValid()) {
-      map.fitBounds(bounds.pad(0.12));
+      // Si sólo hay un marcador, enfocar con zoom fijo (evita problemas de fitBounds en punto único)
+      if (allMarkers.length === 1) {
+        map.setView(allMarkers[0].marker.getLatLng(), 16);
+      } else {
+        map.fitBounds(bounds.pad(0.12));
+      }
     }
 
     // Arregla el tamaño del mapa si el contenedor cambia (p. ej., en WordPress)
@@ -115,9 +285,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ------------------- Utilidades principales -------------------
 
+function updateInfoBar(place) {
+  const infoBarEl = document.getElementById('infoBar');
+  if (!infoBarEl) return;
+  const name = escapeHtml(String(place.nombre || '').trim());
+  const desc = escapeHtml(String(place.descripcion || '').trim());
+  const content = (name || desc)
+    ? \`\${name ? \`<strong>\${name}</strong>\` : ''}\${name && desc ? ' — ' : ''}\${desc || ''}\`
+    : 'Selecciona un lugar para ver el nombre y descripción.';
+  infoBarEl.innerHTML = content;
+}
+
 async function fetchCsv(url) {
   const res = await fetch(url, { mode: 'cors', redirect: 'follow' });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
   const contentType = res.headers.get('content-type') || '';
   const text = await res.text();
   // Si Google devuelve HTML (login/preview) en lugar de CSV, avisamos claramente
@@ -129,7 +310,7 @@ async function fetchCsv(url) {
 
 async function fetchJson(url) {
   const res = await fetch(url, { mode: 'cors', redirect: 'follow' });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
   return await res.json();
 }
 
@@ -168,7 +349,7 @@ function parseCsvToObjects(csvText) {
     .map(row => {
       const obj = {};
       row.forEach((cell, idx) => {
-        obj[normalizedHeaders[idx] || `col_${idx}`] = String(cell || '').trim();
+        obj[normalizedHeaders[idx] || \`col_\${idx}\`] = String(cell || '').trim();
       });
       return obj;
     });
@@ -178,7 +359,9 @@ function mapRowsToSchema(objs) {
   // Mapeo flexible de encabezados -> campos esperados
   const headerMap = {
     nombre: ['nombre', 'name'],
-    direccion: ['direccion', 'dirección', 'address', 'ubicacion', 'ubicación'],
+    direccion: ['direccion', 'descripción', 'address', 'ubicacion', 'ubicación'],
+    descripcion: ['descripcion', 'descripción', 'description', 'detalle', 'resumen'],
+    coordenadas: ['coordenadas', 'coordinates', 'latlon', 'lonlat', 'coord', 'ubicacion coords'],
     contacto: ['contacto', 'contact', 'telefono', 'teléfono', 'email', 'correo', 'web', 'sitio', 'sitio web'],
     horarios: ['horarios', 'horario', 'hours', 'schedule'],
     horarios2: ['horarios 2', 'horarios2', 'hours 2', 'schedule 2'],
@@ -200,6 +383,8 @@ function mapRowsToSchema(objs) {
   return objs.map(o => ({
     nombre: pick(o, headerMap.nombre),
     direccion: pick(o, headerMap.direccion),
+    descripcion: pick(o, headerMap.descripcion),
+    coordenadas: pick(o, headerMap.coordenadas),
     contacto: pick(o, headerMap.contacto),
     horarios: pick(o, headerMap.horarios),
     horarios2: pick(o, headerMap.horarios2),
@@ -211,15 +396,107 @@ function mapRowsToSchema(objs) {
   }));
 }
 
+function parseCoordinatePair(text) {
+  // Limpia y normaliza el texto de entrada
+  const s = String(text || '').trim()
+    .replace(/\s+/g, ' ')               // normaliza espacios
+    .replace(/[[\]()]/g, '')            // elimina corchetes/paréntesis
+    .replace(/\s*[;,|]\s*/g, ',')       // normaliza separadores (coma, punto y coma, pipe)
+    .replace(/\s*,\s*/g, ',');          // normaliza comas
+
+  // Si hay orden forzado, respétalo cuando sea posible
+  if (FORCE_COORDINATE_ORDER === 'latlng' || FORCE_COORDINATE_ORDER === 'lnglat') {
+    const parts = s.split(/[,\s]+/);
+    if (parts.length >= 2) {
+      const a = toNumberOrNull(parts[0]);
+      const b = toNumberOrNull(parts[1]);
+      if (a !== null && b !== null) {
+        return FORCE_COORDINATE_ORDER === 'latlng' ? [a, b] : [b, a];
+      }
+    }
+  }
+
+  // Intento estándar: "lat,lng" o "lat lng" (ahora acepta ; o | porque los normalizamos arriba)
+  const parts = s.split(/[,\s]+/);
+  if (parts.length === 2) {
+    const [pa, pb] = parts.map(x => toNumberOrNull(x));
+    if (pa !== null && pb !== null) {
+      const c1 = isValidLat(pa) && isValidLng(pb) ? [pa, pb] : null;
+      const c2 = isValidLat(pb) && isValidLng(pa) ? [pb, pa] : null;
+      if (c1 && !c2) return c1;
+      if (c2 && !c1) return c2;
+      if (c1 && c2 && BOUNDS_HINT) {
+        const in1 = isInsideBounds(c1[0], c1[1], BOUNDS_HINT);
+        const in2 = isInsideBounds(c2[0], c2[1], BOUNDS_HINT);
+        if (in1 && !in2) return c1;
+        if (in2 && !in1) return c2;
+      }
+      if (c1) return c1; // por defecto
+    }
+  }
+
+  // Extrae el primer par de números si el formato es libre
+  const matches = s.match(/[-+]?\d+(?:[.,]\d+)?/g);
+  if (matches && matches.length >= 2) {
+    const a = toNumberOrNull(matches[0]);
+    const b = toNumberOrNull(matches[1]);
+    if (a !== null && b !== null) {
+      const c1 = isValidLat(a) && isValidLng(b) ? [a, b] : null;
+      const c2 = isValidLat(b) && isValidLng(a) ? [b, a] : null;
+      if (c1 && !c2) return c1;
+      if (c2 && !c1) return c2;
+      if (c1 && c2 && BOUNDS_HINT) {
+        const in1 = isInsideBounds(c1[0], c1[1], BOUNDS_HINT);
+        const in2 = isInsideBounds(c2[0], c2[1], BOUNDS_HINT);
+        if (in1 && !in2) return c1;
+        if (in2 && !in1) return c2;
+      }
+      if (c1) return c1;
+    }
+  }
+  return null;
+}
+
 async function getCoordsForPlace(place) {
-  // Usa lat/lng si están disponibles
+  // Si hay coordenadas explícitas en lat/lng, úsalas primero
   const lat = toNumberOrNull(place.latitud);
   const lng = toNumberOrNull(place.longitud);
-  if (lat != null && lng != null) return [lat, lng];
+  
+  if (lat !== null && lng !== null) {
+    // Verifica el rango de las coordenadas
+    if (isValidLat(lat) && isValidLng(lng)) {
+      console.debug(\`[MAPA][coords] explícitas OK para \${place.nombre}: lat=\${lat}, lng=\${lng}\`);
+      return [lat, lng];
+    }
+    // Si están invertidas, hacer swap
+    if (isValidLat(lng) && isValidLng(lat)) {
+      console.debug(\`[MAPA][coords] detectadas invertidas para \${place.nombre}, corrigiendo a lat=\${lng}, lng=\${lat}\`);
+      return [lng, lat];
+    }
+  }
 
-  // Si no hay coords, intenta geocodificar la dirección
-  const addr = (place.direccion || '').trim();
-  if (!addr) return null;
+  // Intenta usar el campo de coordenadas combinado
+  const coordField = String(place.coordenadas || '').trim();
+  if (coordField) {
+    const parsed = parseCoordinatePair(coordField);
+    if (parsed) {
+      const [coord1, coord2] = parsed;
+      if (isValidLat(coord1) && isValidLng(coord2)) {
+        console.debug(\`[MAPA][coords] campo combinado usado para \${place.nombre}: lat=\${coord1}, lng=\${coord2}\`);
+        return [coord1, coord2];
+      } else if (isValidLat(coord2) && isValidLng(coord1)) {
+        console.debug(\`[MAPA][coords] campo combinado invertido para \${place.nombre}, corrigiendo a lat=\${coord2}, lng=\${coord1}\`);
+        return [coord2, coord1];
+      }
+    }
+  }
+
+  // Si no hay coordenadas válidas, intenta geocodificar
+  const addr = String(place.direccion || '').trim();
+  if (!addr) {
+    console.warn(\`[MAPA] No hay dirección para geocodificar: \${place.nombre}\`);
+    return null;
+  }
 
   // Construye consulta combinando nombre + dirección para mayor contexto
   const namePart = String(place.nombre || '').trim();
@@ -227,21 +504,21 @@ async function getCoordsForPlace(place) {
 
   const cached = getCachedGeocode(combinedQuery);
   if (cached) {
-    console.log(`[MAPA] Usando coordenadas cacheadas para ${place.nombre}: ${cached.lat},${cached.lng}`);
+    console.log(\`[MAPA] Usando coordenadas cacheadas para \${place.nombre}: \${cached.lat},\${cached.lng}\`);
     // Asegura el orden correcto para Leaflet
     return [cached.lat, cached.lng];
   }
 
-  console.log(`[MAPA] Geocodificando (mejorado) para ${place.nombre}: ${combinedQuery}`);
+  console.log(\`[MAPA] Geocodificando (mejorado) para \${place.nombre}: \${combinedQuery}\`);
   const geo = await geocodeBestCandidate(place, combinedQuery, { maxResults: MAX_GEOCODER_RESULTS });
   if (!geo) {
-    console.warn(`[MAPA] Falló la geocodificación para: ${place.nombre}`);
+    console.warn(\`[MAPA] Falló la geocodificación para: \${place.nombre}\`);
     return null;
   }
 
   setCachedGeocode(combinedQuery, geo.lat, geo.lng);
-  // Pequeño retardo entre peticiones para respetar al servicio
   await sleep(GEOCODE_DELAY_MS);
+  // Asegura el orden correcto para Leaflet
   return [geo.lat, geo.lng];
 }
 
@@ -260,34 +537,34 @@ function createPopupHtml(place) {
   const contacto = contactoRaw ? formatContact(contactoRaw) : '';
   const horarios = horariosRaw ? escapeHtml(horariosRaw) : '';
   const horarios2Block = horarios2Raw
-    ? `<div><span class="label">Horarios 2</span><span class="value"> ${escapeHtml(horarios2Raw)}</span></div>`
+    ? \`<div><span class="label">Horarios 2</span><span class="value"> \${escapeHtml(horarios2Raw)}</span></div>\`
     : '';
   const ta = taRaw ? escapeHtml(taRaw) : '';
   const te = teRaw ? escapeHtml(teRaw) : '';
   const ts = tsRaw ? escapeHtml(tsRaw) : '';
 
   const rows = [];
-  if (direccion) rows.push(`<div><span class="label">Dirección</span><span class="value"> ${direccion}</span></div>`);
-  if (contacto) rows.push(`<div><span class="label">Contacto</span><span class="value"> ${contacto}</span></div>`);
-  if (horarios) rows.push(`<div><span class="label">Horarios</span><span class="value"> ${horarios}</span></div>`);
+  if (direccion) rows.push(\`<div><span class="label">Dirección</span><span class="value"> \${direccion}</span></div>\`);
+  if (contacto) rows.push(\`<div><span class="label">Contacto</span><span class="value"> \${contacto}</span></div>\`);
+  if (horarios) rows.push(\`<div><span class="label">Horarios</span><span class="value"> \${horarios}</span></div>\`);
   if (horarios2Block) rows.push(horarios2Block);
-  if (ta) rows.push(`<div><span class="label">Tarifa Adultos</span><span class="value"> ${ta}</span></div>`);
-  if (te) rows.push(`<div><span class="label">Tarifa Extranjeros</span><span class="value"> ${te}</span></div>`);
-  if (ts) rows.push(`<div><span class="label">Tarifa Estudiantes</span><span class="value"> ${ts}</span></div>`);
+  if (ta) rows.push(\`<div><span class="label">Tarifa Adultos</span><span class="value"> \${ta}</span></div>\`);
+  if (te) rows.push(\`<div><span class="label">Tarifa Extranjeros</span><span class="value"> \${te}</span></div>\`);
+  if (ts) rows.push(\`<div><span class="label">Tarifa Estudiantes</span><span class="value"> \${ts}</span></div>\`);
 
   const destinationBase = direccionRaw || nombreRaw || '';
   const destination = encodeURIComponent(destinationBase);
   const routeBtn = destinationBase
-    ? `<a class="route-btn" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${destination}">Cómo llegar</a>`
+    ? \`<a class="route-btn" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=\${destination}">Cómo llegar</a>\`
     : '';
 
-  return `
+  return \`
     <div class="popup-content">
-      ${nombre ? `<h3>${nombre}</h3>` : ''}
-      ${rows.length ? `<div class="popup-table">${rows.join('')}</div>` : ''}
-      ${routeBtn}
+      \${nombre ? \`<h3>\${nombre}</h3>\` : ''}
+      \${rows.length ? \`<div class="popup-table">\${rows.join('')}</div>\` : ''}
+      \${routeBtn}
     </div>
-  `;
+  \`;
 }
 
 // ------------------- Geocodificación (Nominatim) -------------------
@@ -302,7 +579,7 @@ async function geocodeAddressNominatim(address) {
       // Nota: Nominatim recomienda identificar la app (header User-Agent). En navegador no es posible fijarlo.
       // Usa este geocoder con moderación. Para producción, considera un servicio con API key.
     });
-    const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+    const url = \`https://nominatim.openstreetmap.org/search?\${params.toString()}\`;
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) return null;
     const data = await res.json();
@@ -330,10 +607,10 @@ async function geocodeBestCandidate(place, query, { maxResults = 5 } = {}) {
     // Si hay BOUNDS_HINT, usar viewbox y bounded=1 para restringir resultados
     if (BOUNDS_HINT) {
       // Nominatim viewbox: left(minLon), top(maxLat), right(maxLon), bottom(minLat)
-      params.set('viewbox', `${BOUNDS_HINT.minLng},${BOUNDS_HINT.maxLat},${BOUNDS_HINT.maxLng},${BOUNDS_HINT.minLat}`);
+      params.set('viewbox', \`\${BOUNDS_HINT.minLng},\${BOUNDS_HINT.maxLat},\${BOUNDS_HINT.maxLng},\${BOUNDS_HINT.minLat}\`);
       params.set('bounded', '1');
     }
-    const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+    const url = \`https://nominatim.openstreetmap.org/search?\${params.toString()}\`;
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) return null;
     const data = await res.json();
@@ -366,17 +643,14 @@ async function geocodeBestCandidate(place, query, { maxResults = 5 } = {}) {
       if (PREFERRED_COUNTRY_CODE && countryCode === String(PREFERRED_COUNTRY_CODE).toUpperCase()) {
         countryBoost = 0.15;
       }
-
       // Boost por estar dentro de los límites
       let boundsBoost = 0;
       if (BOUNDS_HINT && isInsideBounds(lat, lng, BOUNDS_HINT)) {
         boundsBoost = 0.15;
       }
-
       // Importancia del candidato (valor de Nominatim ~ [0..1+])
       const importance = Number(cand.importance || 0);
       const importanceBoost = Math.min(Math.max(importance, 0), 1) * 0.15;
-
       // Si había coordenadas explícitas (lat/lng) en la fila, preferir cercanía
       let coordProximityBoost = 0;
       if (isValidLat(latHint) && isValidLng(lngHint)) {
@@ -385,16 +659,13 @@ async function geocodeBestCandidate(place, query, { maxResults = 5 } = {}) {
         const prox = Math.max(0, 1 - (km / 50));
         coordProximityBoost = (prox * 0.3) - (km > 100 ? 0.05 : 0);
       }
-
       // Puntuación final
       const score = (textSim * 0.55) + countryBoost + boundsBoost + importanceBoost + coordProximityBoost;
-
       if (score > bestScore) {
         bestScore = score;
         best = { lat, lng, score, raw: cand };
       }
     }
-
     return best ? { lat: best.lat, lng: best.lng } : null;
   } catch (e) {
     console.warn('Geocoding (bestCandidate) error:', e);
@@ -404,7 +675,7 @@ async function geocodeBestCandidate(place, query, { maxResults = 5 } = {}) {
 
 function getCachedGeocode(address) {
   try {
-    const key = `geocodeCache::${address}`;
+    const key = \`geocodeCache::\${address}\`;
     const raw = localStorage.getItem(key);
     if (!raw) return null;
     const obj = JSON.parse(raw);
@@ -415,7 +686,7 @@ function getCachedGeocode(address) {
 
 function setCachedGeocode(address, lat, lng) {
   try {
-    const key = `geocodeCache::${address}`;
+    const key = \`geocodeCache::\${address}\`;
     localStorage.setItem(key, JSON.stringify({ lat, lng }));
   } catch { /* almacenamiento puede fallar en modo privado */ }
 }
@@ -423,7 +694,7 @@ function setCachedGeocode(address, lat, lng) {
 // ------------------- Helpers -------------------
 
 function generatePinIcon(hexColor) {
-  const svg = `
+  const svg = \`
 <svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41">
   <defs>
     <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
@@ -438,10 +709,10 @@ function generatePinIcon(hexColor) {
       </feMerge>
     </filter>
   </defs>
-  <path filter="url(#shadow)" fill="${hexColor}" d="M12.5 0C5.596 0 0 5.596 0 12.5 0 20.938 12.5 41 12.5 41S25 20.938 25 12.5C25 5.596 19.404 0 12.5 0z"/>
+  <path filter="url(#shadow)" fill="\${hexColor}" d="M12.5 0C5.596 0 0 5.596 0 12.5 0 20.938 12.5 41 12.5 41S25 20.938 25 12.5C25 5.596 19.404 0 12.5 0z"/>
   <circle cx="12.5" cy="12.5" r="5.5" fill="#ffffff"/>
-</svg>`;
-  const url = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+</svg>\`;
+  const url = \`data:image/svg+xml;charset=UTF-8,\${encodeURIComponent(svg)}\`;
   return L.icon({
     iconUrl: url,
     iconSize: [25, 41],
@@ -500,8 +771,8 @@ function normalizeHeader(h) {
   return String(h || '')
     .trim()
     .toLowerCase()
-    .normalize('NFD').replace(/\p{Diacritic}/gu, '')
-    .replace(/\s+/g, ' ');
+    .normalize('NFD').replace(/\\p{Diacritic}/gu, '')
+    .replace(/\\s+/g, ' ');
 }
 
 function toNumberOrNull(v) {
@@ -543,28 +814,28 @@ function escapeHtml(str) {
 }
 
 function isLikelyUrl(s) {
-  try { const u = new URL(s.startsWith('http') ? s : `https://${s}`); return !!u.host; } catch { return false; }
+  try { const u = new URL(s.startsWith('http') ? s : \`https://\${s}\`); return !!u.host; } catch { return false; }
 }
 
 function isEmail(s) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s));
+  return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(s));
 }
 
 function telSanitize(s) {
-  return String(s).replace(/[^+\d]/g, '');
+  return String(s).replace(/[^+\\d]/g, '');
 }
 
 function formatContact(raw) {
   const v = String(raw || '').trim();
   if (!v) return '';
-  if (isEmail(v)) return `<a href="mailto:${escapeHtml(v)}">${escapeHtml(v)}</a>`;
+  if (isEmail(v)) return \`<a href="mailto:\${escapeHtml(v)}">\${escapeHtml(v)}</a>\`;
   if (isLikelyUrl(v)) {
-    const href = v.startsWith('http') ? v : `https://${v}`;
-    return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(v)}</a>`;
+    const href = v.startsWith('http') ? v : \`https://\${v}\`;
+    return \`<a href="\${escapeHtml(href)}" target="_blank" rel="noopener">\${escapeHtml(v)}</a>\`;
   }
-  if (/\d{6,}/.test(v)) {
+  if (/\\d{6,}/.test(v)) {
     const tel = telSanitize(v);
-    return `<a href="tel:${tel}">${escapeHtml(v)}</a>`;
+    return \`<a href="tel:\${tel}">\${escapeHtml(v)}</a>\`;
   }
   return escapeHtml(v);
 }
@@ -577,7 +848,7 @@ function applyFilter(query, group, allMarkers, map) {
   const tempGroup = L.featureGroup();
 
   for (const { marker, place } of allMarkers) {
-    const haystack = normalizeHeader(`${place.nombre || ''} ${place.direccion || ''}`);
+    const haystack = normalizeHeader(\`\${place.nombre || ''} \${place.direccion || ''}\`);
     const match = q.length === 0 || haystack.includes(q);
     if (match) {
       tempGroup.addLayer(marker);
@@ -602,7 +873,7 @@ function applyFilter(query, group, allMarkers, map) {
 
 function tokenizeNormalized(s) {
   return String(s)
-    .split(/\s+/)
+    .split(/\\s+/)
     .map(t => t.trim())
     .filter(t => t.length > 1);
 }
@@ -616,3 +887,6 @@ function jaccardSimilarity(tokensA, tokensB) {
   const union = setA.size + setB.size - inter;
   return union === 0 ? 0 : inter / union;
 }
+  </script>
+</div>
+

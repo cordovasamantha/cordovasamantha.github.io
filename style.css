@@ -27,6 +27,13 @@ html, body {
   padding: 12px 16px;
   box-sizing: border-box;
 }
+.page-title {
+  margin: 0;
+  font-size: 60px;
+  font-weight: 800;
+  color: #272556;
+  text-align: center;
+}
 .toolbar {
   width: 100%;
   box-sizing: border-box;
@@ -49,6 +56,16 @@ html, body {
   box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.15);
 }
 
+.info-bar {
+  width: 70vmin;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.85);
+  color: #272556;
+  text-align: center;
+}
 
 /* Ajustes de control Leaflet para mejor visibilidad */
 .leaflet-control-attribution {
