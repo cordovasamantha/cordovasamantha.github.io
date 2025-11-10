@@ -17,7 +17,7 @@ const DATA_MODE = 'csv'; // 'wordpress' | 'opensheet' | 'csv'
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSmJpHUjla_aC3_3PUrju45_EGkVzpel7GPXQpRHlbnt_00ECp-tzlBWKHBZX9JRq72-d87pPdYHL1M/pub?output=csv';
 
 // Color del pin (SVG)
-const PIN_COLOR = '#e21054';
+const PIN_COLOR = '#272556';
 
 // Retardo (ms) entre geocodificaciones para respetar Nominatim
 const GEOCODE_DELAY_MS = 900;
