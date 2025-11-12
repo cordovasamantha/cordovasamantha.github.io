@@ -138,4 +138,13 @@ html, body {
   }
 }
 
+.map-title {
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #272556;
+  text-align: center;
+}
+
 
